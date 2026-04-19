@@ -2,50 +2,96 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Steve Fix</title>
+    <title>MC Galaxy of Heroes Clone</title>
     <style>
-        body { margin: 0; background: #222; height: 100vh; overflow: hidden; }
-        model-viewer { width: 100%; height: 100%; }
-        #status { position: absolute; top: 10px; left: 10px; color: #555; font-family: monospace; font-size: 10px; }
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        #ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+        button { padding: 10px 20px; cursor: pointer; background: #333; color: white; border: 2px solid #fff; }
+        #log { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); padding: 10px; }
     </style>
 </head>
 <body>
+    <div id="log">Очередь: Стив</div>
+    <div id="ui">
+        <button onclick="attack()">Базовая атака</button>
+        <button onclick="special()">Спец. прием</button>
+    </div>
 
-    <div id="status">Загрузка...</div>
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
 
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <script type="module">
+        import * as THREE from 'three';
 
-    <model-viewer 
-        id="steve"
-        src="minecraft_-_steve.glb"
-        camera-controls
-        auto-rotate
-        shadow-intensity="1"
-        environment-image="neutral"
-        exposure="1"
-        touch-action="pan-y">
-    </model-viewer>
+        // 1. Настройка сцены
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); // Цвет неба
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-    <script>
-        const mv = document.getElementById('steve');
-        const st = document.getElementById('status');
+        // 2. Свет
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 10, 7.5);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040));
 
-        // Если файл не найден по обычному пути, пробуем "хак" для GitHub
-        mv.addEventListener('error', () => {
-            const currentUrl = window.location.href;
-            if (currentUrl.includes('github.io')) {
-                // Пытаемся построить абсолютный путь
-                const rawPath = currentUrl.split('index.html')[0] + 'minecraft_-_steve.glb';
-                mv.src = rawPath;
-                st.innerText = "Пробую альтернативный путь...";
-            }
-        });
+        // 3. Пол (Земля)
+        const floorGeo = new THREE.PlaneGeometry(20, 20);
+        const floorMat = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
 
-        mv.addEventListener('load', () => {
-            st.innerText = "Загружено!";
-            setTimeout(() => st.style.display = 'none', 2000);
-        });
+        // 4. Создание юнитов (упрощенные модели)
+        function createUnit(color, x) {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color }));
+            body.position.y = 0.5;
+            group.add(body);
+            group.position.x = x;
+            scene.add(group);
+            return group;
+        }
+
+        const player = createUnit(0x00ff00, -3); // Стив (зеленый для примера)
+        const enemy = createUnit(0xff0000, 3);   // Зомби (красный)
+
+        camera.position.set(0, 5, 10);
+        camera.lookAt(0, 0, 0);
+
+        // 5. Логика боя (упрощенная)
+        window.attack = () => {
+            // Анимация рывка
+            const startX = player.position.x;
+            let targetX = enemy.position.x - 1;
+            
+            // Простейший твининг (движение туда-обратно)
+            player.position.x = targetX;
+            setTimeout(() => {
+                player.position.x = startX;
+                document.getElementById('log').innerText = "Зомби получил урон! Ход врага...";
+                enemyTurn();
+            }, 200);
+        };
+
+        function enemyTurn() {
+            setTimeout(() => {
+                enemy.position.x = player.position.x + 1;
+                setTimeout(() => {
+                    enemy.position.x = 3;
+                    document.getElementById('log').innerText = "Ваш ход, Стив";
+                }, 200);
+            }, 1000);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
     </script>
 </body>
 </html>
