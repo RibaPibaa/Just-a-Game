@@ -3,27 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Steve 3D</title>
+    <title>Steve Fix</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #222; }
+        body { margin: 0; background: #222; height: 100vh; overflow: hidden; }
         model-viewer { width: 100%; height: 100%; }
+        #status { position: absolute; top: 10px; left: 10px; color: #555; font-family: monospace; font-size: 10px; }
     </style>
 </head>
 <body>
 
+    <div id="status">Загрузка...</div>
+
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
 
     <model-viewer 
-        src="./minecraft_-_steve.glb" 
-        alt="Стив"
+        id="steve"
+        src="minecraft_-_steve.glb"
         camera-controls
         auto-rotate
         shadow-intensity="1"
+        environment-image="neutral"
         exposure="1"
-        camera-orbit="0deg 75deg 105%"
-        min-camera-orbit="auto auto auto"
-        max-camera-orbit="auto auto auto">
+        touch-action="pan-y">
     </model-viewer>
 
+    <script>
+        const mv = document.getElementById('steve');
+        const st = document.getElementById('status');
+
+        // Если файл не найден по обычному пути, пробуем "хак" для GitHub
+        mv.addEventListener('error', () => {
+            const currentUrl = window.location.href;
+            if (currentUrl.includes('github.io')) {
+                // Пытаемся построить абсолютный путь
+                const rawPath = currentUrl.split('index.html')[0] + 'minecraft_-_steve.glb';
+                mv.src = rawPath;
+                st.innerText = "Пробую альтернативный путь...";
+            }
+        });
+
+        mv.addEventListener('load', () => {
+            st.innerText = "Загружено!";
+            setTimeout(() => st.style.display = 'none', 2000);
+        });
+    </script>
 </body>
 </html>
