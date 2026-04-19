@@ -2,55 +2,54 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>MC Galaxy of Heroes Prototype</title>
+    <title>Minecraft SWGoH Clone</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; }
         
-        /* Интерфейс в стиле SWGoH */
-        #ui-layer {
+        /* Интерфейс в стиле мобильных стратегий */
+        #ui {
             position: absolute;
-            bottom: 30px;
-            right: 30px;
+            bottom: 40px;
+            right: 40px;
             display: flex;
-            flex-direction: column;
-            gap: 15px;
-            pointer-events: none;
+            gap: 20px;
         }
         
-        button {
+        .skill-btn {
             width: 80px;
             height: 80px;
-            border-radius: 50%;
+            border-radius: 15px;
             border: 3px solid #ffd700;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.8);
             color: white;
             font-weight: bold;
             cursor: pointer;
-            pointer-events: auto;
-            transition: transform 0.1s;
+            transition: 0.2s;
         }
 
-        button:hover { background: rgba(50, 50, 50, 0.9); transform: scale(1.1); }
-        button:disabled { border-color: #555; color: #555; cursor: not-allowed; }
+        .skill-btn:hover:not(:disabled) { transform: scale(1.1); background: #333; }
+        .skill-btn:disabled { border-color: #444; color: #444; opacity: 0.5; }
 
-        #turn-info {
+        #log {
             position: absolute;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: white;
-            font-size: 24px;
-            text-shadow: 2px 2px 4px #000;
+            color: #fff;
+            font-size: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 5px #000;
         }
     </style>
 </head>
 <body>
 
-    <div id="turn-info">Ожидание...</div>
+    <div id="log">Ожидание загрузки...</div>
     
-    <div id="ui-layer">
-        <button id="btn-attack" onclick="handleAttack()">АТАКА</button>
-        <button id="btn-special" onclick="alert('Спецприем!')">СПЕЦ</button>
+    <div id="ui">
+        <button id="attack-btn" class="skill-btn" onclick="playerAttack()">АТАКА</button>
+        <button id="special-btn" class="skill-btn" onclick="playerSpecial()">СПЕЦ</button>
     </div>
 
     <script type="importmap">
@@ -62,115 +61,138 @@
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        let scene, camera, renderer, loader;
-        let player, enemy;
-        let isPlayerTurn = false;
+        let scene, camera, renderer, player, enemy;
+        let isPlayerTurn = true;
+        const loader = new GLTFLoader();
 
         init();
         animate();
 
         function init() {
-            // Сцена и рендер
+            // 1. Сцена
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1a1a); // Темный фон для фокуса на бое
-            
+            scene.background = new THREE.Color(0x050505);
+
+            // 2. Камера (Вид сзади-сбоку как в SWGoH)
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(-8, 5, 10); 
+            camera.lookAt(2, 1, 0);
+
+            // 3. Рендерер
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // КАМЕРА: Вид сзади-сбоку (SWGoH style)
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(-7, 4, 8); 
-            camera.lookAt(2, 1, 0);
+            // 4. Свет
+            const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+            scene.add(hemiLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            dirLight.position.set(5, 10, 5);
+            scene.add(dirLight);
 
-            // Свет
-            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambient);
-            const directional = new THREE.DirectionalLight(0xffffff, 1.2);
-            directional.position.set(5, 10, 5);
-            scene.add(directional);
-
-            // Пол (Сетка или земля)
-            const grid = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+            // 5. Окружение (Пол)
+            const grid = new THREE.GridHelper(20, 20, 0x333333, 0x111111);
             scene.add(grid);
 
-            loader = new GLTFLoader();
+            // 6. Загрузка моделей
+            // Загружаем твоего Стива [cite: 51, 61]
+            loadModel('models/steve/scene.gltf', -3, 0, (obj) => {
+                player = obj;
+                player.rotation.y = Math.PI / 2; // Лицом к врагу
+                document.getElementById('log').innerText = "Твой ход";
+            }, 0x00ff00);
 
-            // Создаем временных персонажей (заглушки)
-            // В будущем замените на loader.load('path/to/model.glb', ...)
-            player = createPlaceholder(0x00aaff, -3, 0); // Стив-стайл
-            enemy = createPlaceholder(0xff3300, 3, 0);  // Зомби-стайл
-            
-            scene.add(player);
-            scene.add(enemy);
-
-            startBattle();
+            // Враг (пока куб, или загрузи вторую модель)
+            loadModel('models/zombie/scene.gltf', 3, 0, (obj) => {
+                enemy = obj;
+                enemy.rotation.y = -Math.PI / 2; // Лицом к игроку
+            }, 0xff0000);
         }
 
-        function createPlaceholder(color, x, z) {
-            const group = new THREE.Group();
-            // Тело
-            const body = new THREE.Mesh(
-                new THREE.BoxGeometry(1, 1.8, 0.6), 
-                new THREE.MeshStandardMaterial({ color })
-            );
-            body.position.y = 0.9;
-            group.add(body);
-            group.position.set(x, 0, z);
-            // Глаза (чтобы понимать куда смотрит)
-            const eye = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.1), new THREE.MeshStandardMaterial({color: 0xffffff}));
-            eye.position.set(x > 0 ? -0.4 : 0.4, 1.5, 0.2);
-            group.add(eye);
-            
-            return group;
-        }
-
-        function startBattle() {
-            document.getElementById('turn-info').innerText = "ВАШ ХОД";
-            isPlayerTurn = true;
-            toggleButtons(true);
-        }
-
-        // Логика атаки
-        window.handleAttack = function() {
-            if (!isPlayerTurn) return;
-            isPlayerTurn = false;
-            toggleButtons(false);
-
-            // Простая анимация прыжка к врагу
-            const originalPos = player.position.x;
-            
-            // "Рывок"
-            const jumpTimeline = setInterval(() => {
-                player.position.x += 0.5;
-                if (player.position.x >= enemy.position.x - 1) {
-                    clearInterval(jumpTimeline);
-                    // Удар и возврат
-                    setTimeout(() => {
-                        player.position.x = originalPos;
-                        document.getElementById('turn-info').innerText = "ХОД ВРАГА";
-                        enemyTurn();
-                    }, 150);
+        // Универсальная функция: грузит GLTF или создает куб-заглушку, если файла нет
+        function loadModel(path, x, z, callback, fallbackColor) {
+            loader.load(path, 
+                (gltf) => {
+                    const model = gltf.scene;
+                    model.position.set(x, 0, z);
+                    model.scale.set(0.05, 0.05, 0.05); // Корректировка масштаба под сцену [cite: 47]
+                    scene.add(model);
+                    callback(model);
+                },
+                undefined,
+                () => {
+                    // Если модель не найдена, создаем "майнкрафт-человечка" из кубов
+                    const group = new THREE.Group();
+                    const body = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 0.5), new THREE.MeshStandardMaterial({color: fallbackColor}));
+                    body.position.y = 1;
+                    group.add(body);
+                    group.position.set(x, 0, z);
+                    scene.add(group);
+                    callback(group);
                 }
-            }, 20);
+            );
         }
+
+        // --- ЛОГИКА БОЯ ---
+
+        window.playerAttack = function() {
+            if (!isPlayerTurn || !player || !enemy) return;
+            isPlayerTurn = false;
+            updateUI();
+
+            const startX = player.position.x;
+            const targetX = enemy.position.x - 1.5;
+
+            // Анимация рывка вперед
+            animateMove(player, targetX, 200, () => {
+                document.getElementById('log').innerText = "Удар!";
+                // Возврат назад
+                setTimeout(() => {
+                    animateMove(player, startX, 200, () => {
+                        document.getElementById('log').innerText = "Ход противника...";
+                        setTimeout(enemyTurn, 1000);
+                    });
+                }, 200);
+            });
+        };
 
         function enemyTurn() {
-            setTimeout(() => {
-                // Враг "бьет" нас
-                enemy.position.x -= 1;
+            const startX = enemy.position.x;
+            const targetX = player.position.x + 1.5;
+
+            animateMove(enemy, targetX, 200, () => {
                 setTimeout(() => {
-                    enemy.position.x = 3;
-                    document.getElementById('turn-info').innerText = "ВАШ ХОД";
-                    isPlayerTurn = true;
-                    toggleButtons(true);
+                    animateMove(enemy, startX, 200, () => {
+                        isPlayerTurn = true;
+                        updateUI();
+                        document.getElementById('log').innerText = "Твой ход";
+                    });
                 }, 200);
-            }, 1000);
+            });
         }
 
-        function toggleButtons(enabled) {
-            document.getElementById('btn-attack').disabled = !enabled;
-            document.getElementById('btn-special').disabled = !enabled;
+        // Простая функция анимации перемещения
+        function animateMove(obj, targetX, duration, onComplete) {
+            const startX = obj.position.x;
+            const startTime = performance.now();
+
+            function step() {
+                const elapsed = performance.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                obj.position.x = startX + (targetX - startX) * progress;
+
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    onComplete();
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        function updateUI() {
+            document.getElementById('attack-btn').disabled = !isPlayerTurn;
+            document.getElementById('special-btn').disabled = !isPlayerTurn;
         }
 
         function animate() {
@@ -178,7 +200,7 @@
             renderer.render(scene, camera);
         }
 
-        // Адаптация окна
+        // Ресайз окна
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
